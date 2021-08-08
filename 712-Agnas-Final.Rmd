@@ -1,0 +1,234 @@
+---
+title: "Demographic Earthquake? Is Childcare the Fertility Culprit?"
+author: "Kathryn Agnas"
+date: "5/14/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+rm(list=ls())
+gc() 
+```
+
+```{r include = FALSE}
+library(survey)
+library(readxl)
+library(tidyverse)
+library(scales)
+library(ggthemes)
+DATA <- read.csv("~/Desktop/GSS2018(1).txt")
+#view(DATA)
+fert <- read_excel("~/Downloads/DATA712.xlsx", 
+    sheet = "Sheet1")
+#view(fert)
+```
+
+### Introduction
+
+Demographic trends for fertility in the United States stem from changes in marriage and fertility behaviors (Jacobsen et al., 2012). Throughout the past three decades, fertility trends have been changing within the nation.
+
+```{r echo = FALSE}
+ggplot(data=fert,aes(x=Year,y=TFR)) + geom_line(aes(colour=Region,group=Region)) + theme_classic() + ylim(0,4) + theme(plot.title=element_text(hjust=0.5)) + theme(plot.caption=element_text(hjust=0)) + labs(title="Fig. 1: Trends for Total Fertility Rate in the U.S. Population", x="Year",y="Total Fertility Rate (%)",caption="Source: United Nations. World Population Prospect 2019a. https://population.un.org/wpp/DataQuery/")  
+```
+
+Figure 1 is a line graph illustrating the trends for total fertility rate (an estimate of the number of births that 1,000 women would have in their lifetimes) in the U.S. population from 1990-2020.
+
+```{r echo = FALSE}
+ggplot(data=fert,aes(x=Year,y=MAC)) + geom_line(aes(colour=Region,group=Region)) + theme_classic() + ylim(0,40) + theme(plot.title=element_text(hjust=0.5)) + theme(plot.caption=element_text(hjust=0)) + labs(title="Fig. 2 Trends for Mean Age of Childbearing in the U.S. Population", x="Year",y="Mean Age of Childbearing (Years)",caption="Source: United Nations. World Population Prospect 2019a. https://population.un.org/wpp/DataQuery/")  
+```
+
+Figure 2 is a line graph illustrating the trends for mean age of childbearing (the mean age of mothers at the birth of their children if women were subject throughout their lives to the age-specific fertility rates observed in a given year) in the U.S. population from 1990 to 2020.
+
+In Figure 1, the total fertility rate has been slowing down and demonstrates that women in the U.S. population were close to failing to produce enough offspring to replace themselves. Moreover, Figure 2 reveals that women have been prolonging their decision to have children at a later point in their lives as the mean age of childbearing went from 27 years in 1990-1995 to 30 years in 2015-2020. Late age patterns of childbearing greatly impact the future size of a population by slowing the pace of population growth because the time between generations is longer and fewer people are being added per year (United Nations, 2019b). Altogether, the trends in both figures reveal that fertility have been declining, and that women were having children at older ages. This brings into question on whether child care could be influencing these trends.
+
+In this analysis, I will be examining how attitudes towards child care vary in the United States. The focal demographic group for this analysis will be split into groups of the age of the respondents when their first child was born to determine whether attitudes on child care varies across age; it is crucial to understand the perspective of Americans that have children for this analysis. I will be utilizing the General Social Survey 2018 dataset to conduct this analysis.
+
+### Statement of the Problem
+
+1.	How did parents in the U.S. feel about child care in 2018?
+2.	Are demographic characteristics associated with the relationship between age and attitudes towards child care?
+
+```{r include = FALSE}
+# Cleaning Variables
+
+DATA$AGEKDBRN <- ifelse(DATA$AGEKDBRN%in% c(0,98,99),NA,DATA$AGEKDBRN)
+DATA$AGE <- ifelse(DATA$AGE %in% c(98,99),NA,DATA$AGE)
+DATA$NATCHLD <- ifelse(DATA$NATCHLD %in% c(0,8,9),NA,DATA$NATCHLD)
+DATA$WRKSTAT <- ifelse(DATA$WRKSTAT %in%c(0,8,9),NA,DATA$WRKSTAT)
+DATA$DEGREE <- ifelse(DATA$DEGREE %in% c(7,8,9),NA, DATA$DEGREE)
+DATA$MADEG <- ifelse(DATA$MADEG %in% c(7,8,9),NA, DATA$MADEG)
+DATA$PADEG <- ifelse(DATA$PADEG %in% c(7,8,9),NA, DATA$PADEG)
+DATA$PARTYID <- ifelse(DATA$PARTYID %in% c(7:9), NA, DATA$PARTYID)
+DATA$CHILDS <- ifelse(DATA$CHILDS == "9", NA, DATA$CHILDS)
+DATA$HOMPOP <- ifelse(DATA$HOMPOP %in% c(98,99),NA, DATA$HOMPOP)
+DATA$DWELOWN <- ifelse(DATA$DWELOWN %in% c(0,3,8,9),NA, DATA$DWELOWN)
+DATA$QUALLIFE <- ifelse(DATA$QUALLIFE %in% c(0,8,9),NA,DATA$QUALLIFE)
+DATA$RACEHISP <- ifelse(DATA$RACEHISP =="9", NA, DATA$RACEHISP)
+DATA$USCITZN <- ifelse(DATA$USCITZN %in% c(0,8,9), NA, DATA$USCITZN)
+DATA$DIVORCE <- ifelse(DATA$DIVORCE %in% c(0,8,9),NA,DATA$DIVORCE)
+```
+
+```{r include = FALSE}
+gss.design <- svydesign(
+  ids = ~VPSU,
+  strata = ~VSTRAT,
+  data = DATA,
+  weights = ~WTSSALL,
+  nest = T)
+```
+
+```{r include = FALSE}
+## Preparing Variables for Model
+
+# Age When R Had First Child
+gss.design <- update(gss.design,
+                     agekid = cut(DATA$AGEKDBRN, c(0,18,25,999),labels=c("Adolescence","Young Adulthood","Later Adulthood")))
+gss.design <- update(gss.design,
+                     agekid = factor(agekid))
+
+# Age
+gss.design <- update(gss.design,
+                     age = cut(DATA$AGE, c(0,24,65,999),labels=c("Youth","Adulthood","Senior")))
+gss.design <- update(gss.design,
+                     age = factor(age))
+
+# Binary Variable of ""too little"" for NATCHLD
+gss.design <- update(gss.design,
+                     toolitchi = ifelse(DATA$NATCHLD == "1", 1, 0))
+gss.design <- update(gss.design,
+                     toolitchi = factor(toolitchi))
+
+# Party
+gss.design <- update(gss.design, 
+                     party = factor(DATA$PARTYID, c(0,1,2,3,4,5,6), labels = c("Strong Dem", "Mod Dem", "Leans Dem", "Indep.", "Leans Rep", "Mod Rep", "Strong Rep")))
+gss.design <- update(gss.design,
+                     party = factor(party))
+
+# Degree
+gss.design <- update(gss.design, 
+                    deg = cut(DATA$DEGREE, c(0,3,999),labels=c("Not College Educated", "College Educated")))
+gss.design <- update(gss.design, 
+                    deg = factor(deg))
+
+# Mother's Degree
+gss.design <- update(gss.design, 
+                    mom = cut(DATA$MADEG, c(0,3,999),labels=c("Not College Educated", "College Educated")))
+gss.design <- update(gss.design, 
+                    mom = factor(mom))
+
+# Father's Degree
+gss.design <- update(gss.design, 
+                    dad = cut(DATA$PADEG, c(0,3,999),labels=c("Not College Educated", "College Educated")))
+gss.design <- update(gss.design, 
+                    dad = factor(dad))
+
+# Work Status
+gss.design <- update(gss.design,
+                    wrk = cut(DATA$WRKSTAT, c(1,3,99),labels=c("Working","Not Working")))
+gss.design <- update(gss.design, 
+                    wrk = factor(wrk))
+
+# Quality of Life
+gss.design <- update(gss.design,
+                    life = factor(DATA$QUALLIFE, c(1,2,3,4,5),labels=c("Excellent","Very Good","Good", "Fair","Poor")))
+gss.design <- update(gss.design, 
+                    life = factor(life))
+
+# Home Ownership
+gss.design <- update(gss.design, 
+                    ownrent = factor(DATA$DWELOWN, c(1,2),labels=c("Own", "Rent")))
+
+# Race 
+gss.design <- update(gss.design,
+                    race = factor(DATA$RACEHISP, c(1,2,3,4),labels=c("White", "Black","Hispanic","Other")))
+
+# Sex
+gss.design <- update(gss.design,
+                    sex = factor(DATA$SEX, c(1,2),labels=c("Male","Female")))
+
+# Divorce
+gss.design <- update(gss.design,
+                    div = factor(DATA$DIVORCE, c(1,2),labels=c("Yes","No")))
+
+# Children
+gss.design <- update(gss.design, 
+                    child = cut(DATA$CHILDS, c(0,1,990), labels=c("No children","Has children")))
+gss.design <- update(gss.design, 
+                    child = factor(child))
+```
+
+### Analysis
+
+First, I organized the age of the respondents when their first child was born into discrete groups to examine the distribution. Figure 3 displays that most respondents were having their first child during their young adulthood (18-24). At second, respondents in their later adulthood (25+) when having their first child. Lastly, respondents in their adolescence (17 and less) made the smallest portion of the distribution. This suggests that respondents were least likely to have their first child at a younger age and reflects similar trends in Figure 2.
+
+```{r echo = FALSE}
+tab.1 <- svytable(~agekid, gss.design)
+tab.1
+
+tab.1 <- tab.1 %>%
+  as.data.frame() %>%
+  mutate(Prop = Freq/sum(Freq))
+
+ggplot(data= tab.1, mapping = aes(x = agekid, y = Prop, fill= agekid)) + scale_y_continuous(labels = percent_format()) + geom_col() + theme(plot.title=element_text(hjust=0.5)) + theme(plot.caption=element_text(hjust=0)) + theme(axis.title.x = element_blank()) + labs(title="Fig. 3: Age of R When First Child Was Born",x="Age",y="Proportion (%)",caption="Source: General Social Survey 2018 Dataset",fill="Age Category")  
+```
+
+Figure 3 is a bar graph illustrating the distribution for age groups of how old R was when their first child was born in the U.S. population in 2018.
+
+```{r echo = FALSE}
+#percentage in each group
+graph.1 <- svyby(~toolitchi, ~agekid, gss.design, svymean, na.rm = T, ci = F)
+graph.1
+#younger prefer more funding
+ggplot(graph.1,aes(x=agekid, y=toolitchi1, fill=agekid)) + geom_bar(stat="identity") + scale_y_continuous(labels = percent_format()) + geom_col() + theme(plot.title=element_text(hjust=0.5,size=10)) + theme(plot.caption=element_text(hjust=0)) + theme(axis.title.x = element_blank()) + labs(title="Fig. 4: How Do Attitudes Toward Childcare Vary Across Age of R When First Child Was Born?",x="Age",y="Proportion (%)",caption="Source: General Social Survey 2018 Dataset",fill="Age Category")  
+```
+
+Figure 4 is a bar graph illustrating the distribution of the age of the respondents when their first child was born across attitudes on the government providing “too little” funding on child care in the U.S. population in 2018.
+
+Adding on, I conducted a bivariate analysis on how attitudes towards child care vary by the age of the respondents when their first child was born through a table of summary statistics. I also created a binary variable that demarcates the respondents who that think the government is spending “too little” funding on child care. As the ages increases, older respondents disagreed less on the government spending “too little” funding for child care. On the other side, younger respondents preferred more funding on child care. Figure 4 reveals that attitudes on the government providing “too little” funding on child care were much stronger for younger respondents than older respondents in the U.S. population.				
+
+In the final analysis, I created a model examining how attitudes on the government spending “too little” on funding for child care varies across age, educational attainment, parent’s educational attainment, party identification, race, home ownership, sex, home population, and family size. Educational attainment, parent’s educational attainment, and home ownership were added in part due to evidence showing that poverty, income security (United Nations, 2015b), soaring housing prices (Sobotka et al., 2020), and other economic indicators were associated to lower fertility levels; it is also important to determine whether this is a financial issue to improve child care programs or develop monetary policies to help specific populations in need of assistance. As well, controls, including sex were added as gender inequalities in housework division were linked to lower fertility levels (Sobotka et al., 2020). Lastly, race, party identification, and number of persons in Rs household/number of children were added to determine whether if this is a racial, politicized, or home/family size issue. Issues on child care generally include indicators, such as marriage and income, but the General Social Survey dataset was unable to provide these important aspects.
+
+Independent Variable: Age
+Dependent Variable: Attitudes on the government spending “too little” funding on child care
+Control Variables: Educational attainment, parent's educational, home ownership, party identification, race, sex, home population, and family size
+
+```{r echo = FALSE}
+model.1 <- svyglm(toolitchi ~ age + deg + party + race + ownrent + mom + dad + sex + HOMPOP + child, family="binomial", gss.design)
+
+summary(model.1)
+```
+
+Model 1 shows that age, educational attainment, parent’s educational attainment, race, sex, home population, and family size were not relevant factors on this issue. The model emphasizes that child care is more of a politicized issue instead of an age issue, as respondents who identify strongly as a Republican had -1.26 more disagreeable attitudes on the government spending “too little” funding on child care compared to respondents who identify strongly as a Democrat (p<0.01). This reveals that Republicans did not want to give Liberals a win on this issue. In addition, child care is a financial issue, as respondents who rent had 1.06 more agreeable attitudes on the government spending “too little” funding on child care compared to respondents who own a house (p<0.01). Finally, the model shows that child care is a gender issue with respondents who identify as female had 0.49 more agreeable attitudes than respondents who identify as male on the government spending “too little” funding on child care (p<0.05).
+
+### Conclusion
+
+As attitudes on child care is more of a politicized issue, policymakers and political leaders would be wise to pay attention to the child care needs of Americans who currently rent as they are more than likely than Americans who own a house to have less money. In addition, it would be pertinent to address the financial needs of younger Americans that want to have children when developing policies regarding child care. Furthermore, the issue on gender definitely needs to be discussed and suggests that there were gender inequities regarding this matter. 
+
+
+
+Sources Cited:
+
+General Social Survey. (2018).
+
+Jacobsen, L. A., Mather, M., Dupuis, G. (2012). Household Change in the United States. 
+Population Reference Bureau. 
+
+Sobotka, T., Matysiak, A., Brzozowska, Z. (2020). Policy responses to low fertility: How 
+effective are they? United Nations Population Fund. 
+https://www.unfpa.org/sites/default/files/pub-pdf/Policy_responses_low_fertility_UNFPA_WP_Final_corrections_7Feb2020_CLEAN.pdf
+
+United Nations. (2015). What accounts for near replacement-level fertility in the United States? https://www.un.org/en/development/desa/population/events/pdf/expert/24/Policy_Briefs/PB_UnitedStates.pdf
+
+United Nations. (2019a). World Population Prospects 2019.
+https://population.un.org/wpp/DataQuery/
+
+United Nations. (2019b). Potential impact of later childbearing on future population. 	https://www.un.org/en/development/desa/population/publications/pdf/popfacts/PopFacts_
+2019-5.pdf
+
+
